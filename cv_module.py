@@ -106,7 +106,8 @@ def is_outdoor_scene(all_detected_labels):
 # Detect all objects in image
 # ─────────────────────────────────────────
 def detect_all_objects(image_path):
-    results = model(
+    current_model = get_model()
+    results = current_model(
         image_path,
         verbose=False,
         conf=0.2,
@@ -118,7 +119,7 @@ def detect_all_objects(image_path):
 
     for r in results:
         for box in r.boxes:
-            label = model.names[int(box.cls)]
+            label = current_model.names[int(box.cls)]
             confidence = float(box.conf)
             all_labels.append(label)
 
