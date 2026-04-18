@@ -1,20 +1,18 @@
 import os
 import gdown
 
-# ---- Auto-download model if not present ----
-model = None
+# ---- Auto-download model in background ----
+MODEL_PATH = "best.pt"
+GOOGLE_DRIVE_ID = "1mKlucdwoCF3RLnmDucS2hoSiyBei6uph"
 
-def get_model():
-    global model
-    if model is None:
-        model = YOLO("best.pt")
-    return model
-GOOGLE_DRIVE_ID = "1mKlucdwoCF3RLnmDucS2hoSiyBei6uph"  
+def download_model():
+    if not os.path.exists(MODEL_PATH):
+        print("Downloading model from Google Drive...")
+        gdown.download(f"https://drive.google.com/uc?id={GOOGLE_DRIVE_ID}", MODEL_PATH, quiet=False)
+        print("Model downloaded successfully!")
 
-if not os.path.exists(MODEL_PATH):
-    print("Downloading model from Google Drive...")
-    gdown.download(f"https://drive.google.com/uc?id={GOOGLE_DRIVE_ID}", MODEL_PATH, quiet=False)
-    print("Model downloaded successfully!")
+import threading
+threading.Thread(target=download_model, daemon=True).start()
 # --------------------------------------------
 from fastapi import (
     FastAPI, UploadFile,
