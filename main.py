@@ -1,5 +1,8 @@
 import os
 import gdown
+import threading
+import shutil
+import uuid
 
 # ---- Auto-download model in background ----
 MODEL_PATH = "best.pt"
@@ -11,28 +14,16 @@ def download_model():
         gdown.download(f"https://drive.google.com/uc?id={GOOGLE_DRIVE_ID}", MODEL_PATH, quiet=False)
         print("Model downloaded successfully!")
 
-import threading
 threading.Thread(target=download_model, daemon=True).start()
 # --------------------------------------------
-from fastapi import (
-    FastAPI, UploadFile,
-    File, Form, Depends
-)
-from fastapi.middleware.cors import (
-    CORSMiddleware
-)
+
+from fastapi import FastAPI, UploadFile, File, Form, Depends
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
-import shutil
-import os
-import uuid
 
 from database import create_tables, get_db
-from auth import (
-    register_user, login_user,
-    verify_token, get_all_users,
-    google_login
-)
+from auth import register_user, login_user, verify_token, get_all_users, google_login
 from cv_module import analyze_room_image
 from xai_module import run_xai
 from genai_module import generate_room_image
@@ -99,17 +90,9 @@ def register(
                 "error": "Password must be at least 6 characters"
             }
         )
-
-    result = register_user(
-        db, name, email, password
-    )
-
+    result = register_user(db, name, email, password)
     if not result["success"]:
-        return JSONResponse(
-            status_code=400,
-            content=result
-        )
-
+        return JSONResponse(status_code=400, content=result)
     return result
 
 
@@ -123,13 +106,8 @@ def login(
     db: Session = Depends(get_db)
 ):
     result = login_user(db, email, password)
-
     if not result["success"]:
-        return JSONResponse(
-            status_code=401,
-            content=result
-        )
-
+        return JSONResponse(status_code=401, content=result)
     return result
 
 
@@ -143,9 +121,7 @@ def google_auth(
     google_uid: str = Form(...),
     db: Session = Depends(get_db)
 ):
-    result = google_login(
-        db, name, email, google_uid
-    )
+    result = google_login(db, name, email, google_uid)
     return result
 
 
@@ -153,9 +129,7 @@ def google_auth(
 # Route 5 — Get all users (admin)
 # ─────────────────────────────────────────
 @app.get("/auth/users")
-def get_users(
-    db: Session = Depends(get_db)
-):
+def get_users(db: Session = Depends(get_db)):
     users = get_all_users(db)
     return {
         "total_users": len(users),
@@ -174,48 +148,31 @@ async def analyze_room(
     token: str = Form(...),
     user_prompt: str = Form("")
 ):
-    # Verify user is logged in
     email = verify_token(token)
     if not email:
         return JSONResponse(
             status_code=401,
-            content={
-                "error": "Please login to use this feature"
-            }
+            content={"error": "Please login to use this feature"}
         )
 
-    # Check file type
-    if file.content_type not in [
-        "image/jpeg", "image/png"
-    ]:
+    if file.content_type not in ["image/jpeg", "image/png"]:
         return JSONResponse(
             status_code=400,
-            content={
-                "error": "Only JPEG and PNG images are allowed"
-            }
+            content={"error": "Only JPEG and PNG images are allowed"}
         )
 
-    # Save uploaded image
     file_id = str(uuid.uuid4())
-    file_extension = \
-        file.filename.split(".")[-1]
-    file_path = (
-        f"{UPLOAD_FOLDER}/"
-        f"{file_id}.{file_extension}"
-    )
+    file_extension = file.filename.split(".")[-1]
+    file_path = f"{UPLOAD_FOLDER}/{file_id}.{file_extension}"
 
     with open(file_path, "wb") as buffer:
         shutil.copyfileobj(file.file, buffer)
 
-    # Step 1 — Run CV analysis
-    # Step 1 — Run CV analysis
     cv_results = analyze_room_image(file_path)
 
-    # Delete image first
     if os.path.exists(file_path):
         os.remove(file_path)
 
-    # Check if outdoor scene
     if cv_results.get("is_outdoor", False):
         return JSONResponse(
             status_code=400,
@@ -226,37 +183,25 @@ async def analyze_room(
             }
         )
 
-    # Step 2 — Run XAI recommendations
     xai_results = run_xai(
         room_type=cv_results["room_type"],
-        detected_furniture=cv_results[
-            "detected_furniture"
-        ],
+        detected_furniture=cv_results["detected_furniture"],
         budget=budget,
         style=style,
         density=cv_results["room_density"],
         user_prompt=user_prompt
     )
 
-    # Step 3 — Generate AI design image
-   # Step 3 — Generate AI design image
-    # Pass detected furniture and dimensions
-    # so existing items are kept in design
     genai_results = generate_room_image(
         room_type=cv_results["room_type"],
         style=style,
         budget=budget,
-        recommendations=xai_results[
-            "recommendations"
-        ],
+        recommendations=xai_results["recommendations"],
         user_prompt=user_prompt,
-        detected_furniture=cv_results.get(
-            "detected_furniture", []
-        ),
-        dimensions=cv_results.get(
-            "dimensions", None
-        )
+        detected_furniture=cv_results.get("detected_furniture", []),
+        dimensions=cv_results.get("dimensions", None)
     )
+
     return {
         "status": "success",
         "user_email": email,
@@ -280,9 +225,7 @@ async def get_recommendations(
     budget: int = Form(50000),
     style: str = Form("modern")
 ):
-    furniture_list = furniture.split(",") \
-        if furniture else []
-
+    furniture_list = furniture.split(",") if furniture else []
     return {
         "status": "success",
         "room_type": room_type,
@@ -324,13 +267,11 @@ async def generate_visualization(
 ):
     return {
         "status": "success",
-        "message": (
-            f"Generating {style} "
-            f"design for {room_type}..."
-        )
+        "message": f"Generating {style} design for {room_type}..."
     }
+
+
 if __name__ == "__main__":
     import uvicorn
-    import os
     port = int(os.environ.get("PORT", 8000))
     uvicorn.run("main:app", host="0.0.0.0", port=port)
