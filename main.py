@@ -2,7 +2,13 @@ import os
 import gdown
 
 # ---- Auto-download model if not present ----
-MODEL_PATH = "best.pt"
+model = None
+
+def get_model():
+    global model
+    if model is None:
+        model = YOLO("best.pt")
+    return model
 GOOGLE_DRIVE_ID = "1mKlucdwoCF3RLnmDucS2hoSiyBei6uph"  
 
 if not os.path.exists(MODEL_PATH):
