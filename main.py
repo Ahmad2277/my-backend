@@ -1,3 +1,15 @@
+import os
+import gdown
+
+# ---- Auto-download model if not present ----
+MODEL_PATH = "best.pt"
+GOOGLE_DRIVE_ID = "1mKlucdwoCF3RLnmDucS2hoSiyBei6uph"  
+
+if not os.path.exists(MODEL_PATH):
+    print("Downloading model from Google Drive...")
+    gdown.download(f"https://drive.google.com/uc?id={GOOGLE_DRIVE_ID}", MODEL_PATH, quiet=False)
+    print("Model downloaded successfully!")
+# --------------------------------------------
 from fastapi import (
     FastAPI, UploadFile,
     File, Form, Depends
