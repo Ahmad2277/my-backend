@@ -9,12 +9,10 @@ import time
 def get_model():
     global model
     if model is None:
-        print("🔄 Loading Best model now...")
-        import torch
-        torch.set_num_threads(1)
+        print("🔄 Loading YOLO model now...")
         model = YOLO("best.pt")
-        model.to('cpu')
-        print("✅ Best model loaded on CPU!")
+        print(f"✅ Model loaded!")
+        print(f"📋 Model can detect: {list(model.names.values())}")
     return model
 
 # ─────────────────────────────────────────
@@ -115,7 +113,7 @@ def detect_all_objects(image_path):
     results = current_model(
         image_path,
         verbose=True,
-        conf=0.2,
+        conf=0.1,
         iou=0.45
     )
     
