@@ -9,10 +9,15 @@ import time
 def get_model():
     global model
     if model is None:
-        print("🔄 Loading YOLO model now...")
-        model = YOLO("best.pt")
-        print(f"✅ Model loaded!")
-        print(f"📋 Model can detect: {list(model.names.values())}")
+        try:
+            print("🔄 Loading YOLO model now...")
+            from ultralytics import YOLO
+            model = YOLO("best.pt")
+            print(f"✅ Model loaded successfully!")
+            print(f"📋 Classes: {list(model.names.values())}")
+        except Exception as e:
+            print(f"❌ Model loading ERROR: {e}")
+            model = None
     return model
 
 # ─────────────────────────────────────────
@@ -108,47 +113,46 @@ def detect_all_objects(image_path):
     print(f"📁 File exists: {os.path.exists(image_path)}")
     
     current_model = get_model()
-    print(f"✅ Model loaded: {current_model is not None}")
     
-    results = current_model(
-        image_path,
-        verbose=True,
-        conf=0.1,
-        iou=0.45
-    )
+    if current_model is None:
+        print("❌ Model is None! Cannot detect.")
+        return [], []
     
-    print(f"📊 Raw results: {results}")
-    
-    all_labels = []
-    furniture_items = []
+    try:
+        results = current_model(
+            image_path,
+            verbose=True,
+            conf=0.1,
+            iou=0.45
+        )
+        print(f"✅ Detection complete!")
+        
+        all_labels = []
+        furniture_items = []
 
-    for r in results:
-        print(f"📦 Boxes found: {len(r.boxes)}")
-        for box in r.boxes:
-            label = current_model.names[int(box.cls)]
-            confidence = float(box.conf)
-            print(f"  → Detected: {label} ({confidence:.2f})")
-            all_labels.append(label)
+        for r in results:
+            print(f"📦 Boxes found: {len(r.boxes)}")
+            for box in r.boxes:
+                label = current_model.names[int(box.cls)]
+                confidence = float(box.conf)
+                print(f"  → {label} ({confidence:.2f})")
+                all_labels.append(label)
 
-            if label in FURNITURE_ITEMS and \
-               confidence > 0.25:
-                furniture_items.append({
-                    "item": label,
-                    "confidence": round(
-                        confidence * 100, 1
-                    )
-                })
+                if label in FURNITURE_ITEMS and confidence > 0.1:
+                    furniture_items.append({
+                        "item": label,
+                        "confidence": round(confidence * 100, 1)
+                    })
 
-    print(f"🏠 All labels: {all_labels}")
-    print(f"🛋️ Furniture items: {furniture_items}")
+    except Exception as e:
+        print(f"❌ Detection ERROR: {e}")
+        return [], []
 
-    # Remove duplicate furniture items
     seen = {}
     for item in furniture_items:
         name = item["item"]
         if name not in seen or \
-           item["confidence"] > \
-           seen[name]["confidence"]:
+           item["confidence"] > seen[name]["confidence"]:
             seen[name] = item
 
     return list(seen.values()), all_labels
