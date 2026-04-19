@@ -1,21 +1,7 @@
 import os
 import gdown
-import threading
 import shutil
 import uuid
-
-# ---- Auto-download model in background ----
-MODEL_PATH = "best.pt"
-GOOGLE_DRIVE_ID = "1mKlucdwoCF3RLnmDucS2hoSiyBei6uph"
-
-def download_model():
-    if not os.path.exists(MODEL_PATH):
-        print("Downloading model from Google Drive...")
-        gdown.download(f"https://drive.google.com/uc?id={GOOGLE_DRIVE_ID}", MODEL_PATH, quiet=False)
-        print("Model downloaded successfully!")
-
-threading.Thread(target=download_model, daemon=True).start()
-# --------------------------------------------
 
 from fastapi import FastAPI, UploadFile, File, Form, Depends
 from fastapi.middleware.cors import CORSMiddleware
@@ -29,10 +15,10 @@ from xai_module import run_xai
 from genai_module import generate_room_image
 
 # ─────────────────────────────────────────
-# Create database tables on startup
+# MODEL CONFIG
 # ─────────────────────────────────────────
-create_tables()
-print("✅ Database ready")
+MODEL_PATH = "best.pt"
+GOOGLE_DRIVE_ID = "1mKlucdwoCF3RLnmDucS2hoSiyBei6uph"
 
 # ─────────────────────────────────────────
 # Create FastAPI app
@@ -41,6 +27,32 @@ app = FastAPI(
     title="RenoVision API",
     version="1.0"
 )
+
+# ─────────────────────────────────────────
+# STARTUP EVENT (SAFE FOR DEPLOYMENT)
+# ─────────────────────────────────────────
+@app.on_event("startup")
+def startup_event():
+    print("🚀 Starting RenoVision backend...")
+
+    # Create DB tables
+    create_tables()
+    print("✅ Database ready")
+
+    # Download model if not exists
+    if not os.path.exists(MODEL_PATH):
+        print("⬇️ Downloading model from Google Drive...")
+        gdown.download(
+            f"https://drive.google.com/uc?id={GOOGLE_DRIVE_ID}",
+            MODEL_PATH,
+            quiet=False,
+            fuzzy=True
+        )
+        print("✅ Model downloaded")
+    else:
+        print("✅ Model already exists")
+
+    print("🔥 Backend ready!")
 
 # ─────────────────────────────────────────
 # CORS Middleware
@@ -60,23 +72,25 @@ app.add_middleware(
 UPLOAD_FOLDER = "uploads"
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
+# ─────────────────────────────────────────
+# Routes
+# ─────────────────────────────────────────
 
-# ─────────────────────────────────────────
-# Route 1 — Home
-# ─────────────────────────────────────────
 @app.get("/")
 def home():
     return {
         "message": "RenoVision API is running!",
         "version": "1.0"
     }
+
 @app.get("/health")
 def health():
     return {"status": "ok"}
 
 # ─────────────────────────────────────────
-# Route 2 — Register new user
+# AUTH ROUTES
 # ─────────────────────────────────────────
+
 @app.post("/auth/register")
 def register(
     name: str = Form(...),
@@ -87,20 +101,17 @@ def register(
     if len(password) < 6:
         return JSONResponse(
             status_code=400,
-            content={
-                "success": False,
-                "error": "Password must be at least 6 characters"
-            }
+            content={"success": False, "error": "Password must be at least 6 characters"}
         )
+
     result = register_user(db, name, email, password)
+
     if not result["success"]:
         return JSONResponse(status_code=400, content=result)
+
     return result
 
 
-# ─────────────────────────────────────────
-# Route 3 — Login existing user
-# ─────────────────────────────────────────
 @app.post("/auth/login")
 def login(
     email: str = Form(...),
@@ -108,14 +119,13 @@ def login(
     db: Session = Depends(get_db)
 ):
     result = login_user(db, email, password)
+
     if not result["success"]:
         return JSONResponse(status_code=401, content=result)
+
     return result
 
 
-# ─────────────────────────────────────────
-# Route 4 — Google OAuth Login
-# ─────────────────────────────────────────
 @app.post("/auth/google")
 def google_auth(
     name: str = Form(...),
@@ -123,25 +133,18 @@ def google_auth(
     google_uid: str = Form(...),
     db: Session = Depends(get_db)
 ):
-    result = google_login(db, name, email, google_uid)
-    return result
+    return google_login(db, name, email, google_uid)
 
 
-# ─────────────────────────────────────────
-# Route 5 — Get all users (admin)
-# ─────────────────────────────────────────
 @app.get("/auth/users")
 def get_users(db: Session = Depends(get_db)):
     users = get_all_users(db)
-    return {
-        "total_users": len(users),
-        "users": users
-    }
-
+    return {"total_users": len(users), "users": users}
 
 # ─────────────────────────────────────────
-# Route 6 — Analyze room image
+# ANALYZE ROUTE
 # ─────────────────────────────────────────
+
 @app.post("/analyze")
 async def analyze_room(
     file: UploadFile = File(...),
@@ -151,6 +154,7 @@ async def analyze_room(
     user_prompt: str = Form("")
 ):
     email = verify_token(token)
+
     if not email:
         return JSONResponse(
             status_code=401,
@@ -216,10 +220,10 @@ async def analyze_room(
         "generated_design": genai_results
     }
 
+# ─────────────────────────────────────────
+# OTHER ROUTES
+# ─────────────────────────────────────────
 
-# ─────────────────────────────────────────
-# Route 7 — Get recommendations
-# ─────────────────────────────────────────
 @app.post("/recommend")
 async def get_recommendations(
     room_type: str = Form("living room"),
@@ -228,6 +232,7 @@ async def get_recommendations(
     style: str = Form("modern")
 ):
     furniture_list = furniture.split(",") if furniture else []
+
     return {
         "status": "success",
         "room_type": room_type,
@@ -238,9 +243,6 @@ async def get_recommendations(
     }
 
 
-# ─────────────────────────────────────────
-# Route 8 — Get explanation
-# ─────────────────────────────────────────
 @app.post("/explain")
 async def explain_recommendation(
     recommendation: str = Form(...),
@@ -250,17 +252,10 @@ async def explain_recommendation(
     return {
         "status": "success",
         "recommendation": recommendation,
-        "explanation": (
-            f"This recommendation suits your "
-            f"{room_type} and fits within "
-            f"your budget of Rs.{budget}."
-        )
+        "explanation": f"This suits your {room_type} within Rs.{budget}"
     }
 
 
-# ─────────────────────────────────────────
-# Route 9 — Generate visualization
-# ─────────────────────────────────────────
 @app.post("/visualize")
 async def generate_visualization(
     room_type: str = Form("living room"),
@@ -269,15 +264,13 @@ async def generate_visualization(
 ):
     return {
         "status": "success",
-        "message": f"Generating {style} design for {room_type}..."
+        "message": f"Generating {style} design for {room_type}"
     }
 
 
+# ─────────────────────────────────────────
+# LOCAL RUN
+# ─────────────────────────────────────────
 if __name__ == "__main__":
     import uvicorn
-    port = int(os.environ.get("PORT", 8000))
-    uvicorn.run("main:app", host="0.0.0.0", port=port)
-
-@app.get("/health")
-async def health_check():
-    return {"status": "ok"}    
+    uvicorn.run("main:app", host="0.0.0.0", port=8000)
