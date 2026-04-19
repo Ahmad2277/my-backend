@@ -106,21 +106,30 @@ def is_outdoor_scene(all_detected_labels):
 # Detect all objects in image
 # ─────────────────────────────────────────
 def detect_all_objects(image_path):
+    print(f"🔍 Starting detection on: {image_path}")
+    print(f"📁 File exists: {os.path.exists(image_path)}")
+    
     current_model = get_model()
+    print(f"✅ Model loaded: {current_model is not None}")
+    
     results = current_model(
         image_path,
-        verbose=False,
+        verbose=True,
         conf=0.2,
         iou=0.45
     )
-
+    
+    print(f"📊 Raw results: {results}")
+    
     all_labels = []
     furniture_items = []
 
     for r in results:
+        print(f"📦 Boxes found: {len(r.boxes)}")
         for box in r.boxes:
             label = current_model.names[int(box.cls)]
             confidence = float(box.conf)
+            print(f"  → Detected: {label} ({confidence:.2f})")
             all_labels.append(label)
 
             if label in FURNITURE_ITEMS and \
@@ -132,8 +141,10 @@ def detect_all_objects(image_path):
                     )
                 })
 
+    print(f"🏠 All labels: {all_labels}")
+    print(f"🛋️ Furniture items: {furniture_items}")
+
     # Remove duplicate furniture items
-    # Keep highest confidence per item
     seen = {}
     for item in furniture_items:
         name = item["item"]
