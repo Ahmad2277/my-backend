@@ -6,21 +6,16 @@ import os
 import time
 
 # ─────────────────────────────────────────
-print("Loading best.pt...")
-start = time.time()
-model = None
-
 def get_model():
     global model
     if model is None:
-        print("🔄 Loading best model now...")
+        print("🔄 Loading Best model now...")
+        import torch
+        torch.set_num_threads(1)
         model = YOLO("best.pt")
-        print("✅ YOLO model loaded!")
+        model.to('cpu')
+        print("✅ Best model loaded on CPU!")
     return model
-
-# Force load at startup
-get_model()
-print(f"Model loaded in {round(time.time()-start, 2)}s")
 
 # ─────────────────────────────────────────
 # ALL detectable objects
