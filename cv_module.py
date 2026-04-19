@@ -13,8 +13,13 @@ model = None
 def get_model():
     global model
     if model is None:
+        print("🔄 Loading best model now...")
         model = YOLO("best.pt")
+        print("✅ YOLO model loaded!")
     return model
+
+# Force load at startup
+get_model()
 print(f"Model loaded in {round(time.time()-start, 2)}s")
 
 # ─────────────────────────────────────────
