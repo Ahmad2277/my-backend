@@ -70,7 +70,9 @@ def home():
         "message": "RenoVision API is running!",
         "version": "1.0"
     }
-
+@app.get("/health")
+def health():
+    return {"status": "ok"}
 
 # ─────────────────────────────────────────
 # Route 2 — Register new user
